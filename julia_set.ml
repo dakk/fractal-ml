@@ -42,15 +42,20 @@ let reshape ~w ~h =
   
 
 let display () =
+	GlClear.color (0.0, 0.0, 0.0);
+	GlClear.clear [`color];
+
+	(*GlMat.rotate ~angle:90.0 ~x:0.1 ();*)
 	GlDraw.begins `points;
-	for a = 0 to 640 - 1 do
-		for b = 0 to 480 - 1 do
-			let x = 3. *. float a /. float 640 -. 1.5 in
-			let y = 3. *. float b /. float 480 -. 1.5 in
+	for a = 0 to 800 - 1 do
+		for b = 0 to 600 - 1 do
+			let x = 3. *. float a /. float 800 -. 1.5 in
+			let y = 3. *. float b /. float 600 -. 1.5 in
 			let i = julia_calculate {Complex.re=(-0.70176); Complex.im=(-0.3842)} (x,y) 255 3.0 in
 			let f i = 0.5 +. 0.5 *. cos(float i *. 0.1) in
+			let z =  (float i /. -200.0) in 
 			GlDraw.color (0.0, 0.0, f(i + 32));
-			GlDraw.vertex ~x ~y ()
+			GlDraw.vertex ~x ~y ~z ()
 		done;
 	done;
 	GlDraw.ends ();
@@ -58,7 +63,7 @@ let display () =
 
 let () =
 	Glut.init Sys.argv;
-	Glut.initWindowSize ~w: 640 ~h: 480;
+	Glut.initWindowSize ~w: 800 ~h: 600;
 	Glut.createWindow ~title: "Julia set";
 	Glut.displayFunc ~cb: display;  
 	Glut.reshapeFunc ~cb:reshape;
