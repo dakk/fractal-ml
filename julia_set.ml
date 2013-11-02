@@ -22,14 +22,63 @@
 (* ocamlopt -I +lablGL lablgl.cmxa lablglut.cmxa julia_set.ml -o julia_set *)
 
 
+(* Global state *)
+let c_values = 
+	[
+		{	Complex.re=(-0.8);		Complex.im=(0.156)		};
+		{	Complex.re=(0.285); 	Complex.im=(0.0)		};
+		{	Complex.re=(-0.835); 	Complex.im=(-0.2321)	};
+		{	Complex.re=(-0.70176); 	Complex.im=(-0.3842)	};
+		{	Complex.re=(0.45); 		Complex.im=(0.1428)		};
+		{	Complex.re=(0.285); 	Complex.im=(0.01)		};
+	]
+;;
+
+let f z = (Complex.mul z z);;
+
+(*
+let f z =
+	Complex.div 
+		(Complex.sub 	(Complex.one) 
+						(Complex.div 
+							(Complex.pow z { Complex.re=6.0; Complex.im=0.0 }) 
+							{ Complex.re=6.0; Complex.im=0.0 })) 
+		(Complex.pow 	(Complex.sub z 
+							(Complex.div 
+								(Complex.pow z { Complex.re=2.0; Complex.im=0.0 }) 
+								{ Complex.re=2.0; Complex.im=0.0 })) 
+						{ Complex.re=2.0; Complex.im=0.0 })
+*)
+
+let c_i = ref 0;;
+let c () = (List.nth c_values (!c_i));;
+let zoom = ref (1.0, 1.0);;
+let zfactor = 1.05;;
+
+let wsize = (500, 500);;
+
+
+
 (* Calculate the julia set iteration in a generic point z *)
 let julia_calculate c (x,y) imax er =
+	let c' = c in
+	let z = {Complex.re=x /. (fst !zoom); Complex.im=y /. (snd !zoom)} in
+	let rec step i z =
+		if Complex.norm(z) > er || i >= imax then i
+		else step (i+1) (Complex.add (f z) c')
+	in step 0 z
+;;
+
+
+(* Calculate the mandelbrot set iteration in a generic point z *)
+let mandelbrot_calculate c (x,y) imax er =
 	let z = {Complex.re=x; Complex.im=y} in
 	let rec step i z =
 		if Complex.norm(z) > er || i >= imax then i
-		else step (i+1) (Complex.add (Complex.mul z z) c)
+		else step (i+1) (Complex.add (f z) c)
 	in step 0 z
 ;;
+
 
 
 let reshape ~w ~h =
@@ -37,9 +86,21 @@ let reshape ~w ~h =
 	GlDraw.viewport 0 0 w h;
 	GlMat.mode `projection;
 	GlMat.load_identity ();
-	GlMat.ortho ~x:(-2., 2.) ~y:(-2., 2.) ~z:(0., 1.);
+	
 	GlMat.mode `modelview
-  
+;;
+
+
+let rec draw_text (x, y) s =
+	match String.length s with
+	| 0 -> ()
+	| n -> 
+		GlPix.raster_pos x y ();
+		Glut.bitmapCharacter Glut.BITMAP_8_BY_13 (Char.code s.[0]);
+		draw_text (x +. 8.0, y) (String.sub s 1 ((String.length s) - 1))
+;;
+			
+		  
 
 let display () =
 	GlClear.color (0.0, 0.0, 0.0);
@@ -47,25 +108,60 @@ let display () =
 
 	(*GlMat.rotate ~angle:90.0 ~x:0.1 ();*)
 	GlDraw.begins `points;
-	for a = 0 to 800 - 1 do
-		for b = 0 to 600 - 1 do
-			let x = 3. *. float a /. float 800 -. 1.5 in
-			let y = 3. *. float b /. float 600 -. 1.5 in
-			let i = julia_calculate {Complex.re=(-0.70176); Complex.im=(-0.3842)} (x,y) 255 3.0 in
+	for a = 0 to (fst wsize) - 1 do
+		for b = 0 to (snd wsize) - 1 do
+			let x = 2.0 *. float a /. float (fst wsize) -. (1.0) in
+			let y = 2.0 *. float b /. float (snd wsize) -. (1.0) in
+
+			let i = julia_calculate (c ()) (x,y) 255 2.0 in
 			let f i = 0.5 +. 0.5 *. cos(float i *. 0.1) in
 			let z =  (float i /. -200.0) in 
 			GlDraw.color (0.0, 0.0, f(i + 32));
-			GlDraw.vertex ~x ~y ~z ()
+			GlDraw.vertex ~x ~y () (* ~z () *)
 		done;
 	done;
 	GlDraw.ends ();
-	Gl.flush ()
+
+	
+	(* Draw infos *)
+	GlMat.mode `projection;
+	GlMat.push ();
+	GlMat.load_identity ();
+
+	GlDraw.color (1.0, 1.0, 1.0);
+	draw_text (100.0, 100.0) "Julia Set";
+
+	GlMat.mode `modelview;
+	GlMat.pop ();
+	GlMat.mode `projection;
+	GlMat.pop ();
+
+	Glut.swapBuffers ()
+;;
+
+
+let key_handle ~key ~x ~y =
+	match key with
+	| 27 -> exit 0
+	| _ -> ()
+;;
+
+let skey_handle ~key ~x ~y =
+	match key with
+	| Glut.KEY_RIGHT -> c_i := (!c_i + 1) mod (List.length c_values); display ();
+	| Glut.KEY_LEFT -> c_i := if !c_i = 0 then (List.length c_values) - 1 else !c_i - 1; display ();
+	| Glut.KEY_UP -> zoom := (fst !zoom *. zfactor, snd !zoom *. zfactor); display ();
+	| Glut.KEY_DOWN -> zoom := (fst !zoom /. zfactor, snd !zoom /. zfactor); display ();
+	| _ -> ()
+;;
 
 let () =
 	Glut.init Sys.argv;
-	Glut.initWindowSize ~w: 800 ~h: 600;
+	Glut.initWindowSize ~w: (fst wsize) ~h: (snd wsize);
 	Glut.createWindow ~title: "Julia set";
 	Glut.displayFunc ~cb: display;  
-	Glut.reshapeFunc ~cb:reshape;
-	Glut.keyboardFunc ~cb: (fun ~key ~x ~y -> if key=27 then exit 0);
+	Glut.reshapeFunc ~cb: reshape;
+	Glut.keyboardFunc ~cb: key_handle;
+	Glut.specialUpFunc ~cb: skey_handle;
 	Glut.mainLoop ()
+;;
