@@ -6,7 +6,7 @@ fractals with ocaml and fsharp
 
 
 julia_set.ml
-------------
+-------
 
 Requires lablGL library compiled with +glut.
 
